@@ -7,6 +7,15 @@
         It uses the phone GPS, shows the live position on a map,
         displays sample tour stops, and prepares the structure
         for future automatic tourist commentary.
+
+        This version includes:
+        - European languages
+        - Arabic
+        - Chinese
+        - Japanese
+        - Hindi
+        - English fallback when a translation is not available yet
+        - RTL support for Arabic
     -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -76,6 +85,7 @@
             margin: 0;
             font-size: 15px;
             line-height: 1.4;
+            white-space: pre-line;
         }
 
         .language-row {
@@ -83,10 +93,13 @@
         }
 
         select {
+            width: 100%;
+            max-width: 360px;
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #ccc;
             font-size: 14px;
+            background: white;
         }
 
         .legend {
@@ -140,8 +153,47 @@
                 <label for="languageSelect">Language:</label>
                 <select id="languageSelect">
                     <option value="en">English</option>
-                    <option value="ro">Romanian</option>
-                    <option value="da">Danish</option>
+
+                    <option value="da">Dansk</option>
+                    <option value="de">Deutsch</option>
+                    <option value="fr">Francais</option>
+                    <option value="es">Espanol</option>
+                    <option value="it">Italiano</option>
+                    <option value="pt">Portugues</option>
+                    <option value="nl">Nederlands</option>
+                    <option value="sv">Svenska</option>
+                    <option value="no">Norsk</option>
+                    <option value="fi">Suomi</option>
+                    <option value="is">Islenska</option>
+                    <option value="ga">Irish</option>
+                    <option value="cy">Welsh</option>
+                    <option value="ca">Catala</option>
+
+                    <option value="pl">Polski</option>
+                    <option value="cs">Cestina</option>
+                    <option value="sk">Slovencina</option>
+                    <option value="hu">Magyar</option>
+                    <option value="ro">Romana</option>
+                    <option value="bg">Balgarski</option>
+                    <option value="el">Greek</option>
+                    <option value="hr">Hrvatski</option>
+                    <option value="sl">Slovenscina</option>
+                    <option value="sr">Serbian</option>
+                    <option value="bs">Bosnian</option>
+                    <option value="mk">Macedonian</option>
+                    <option value="sq">Albanian</option>
+                    <option value="lt">Lietuviu</option>
+                    <option value="lv">Latviesu</option>
+                    <option value="et">Eesti</option>
+                    <option value="uk">Ukrainian</option>
+                    <option value="ru">Russian</option>
+                    <option value="be">Belarusian</option>
+                    <option value="tr">Turkish</option>
+
+                    <option value="ar">Arabic / العربية</option>
+                    <option value="zh">Chinese / 中文</option>
+                    <option value="ja">Japanese / 日本語</option>
+                    <option value="hi">Hindi / हिन्दी</option>
                 </select>
             </div>
         </div>
@@ -168,6 +220,18 @@
             maxZoom: 19,
             attribution: "© OpenStreetMap contributors"
         }).addTo(map);
+
+        /*
+            Keep track of the last selected stop.
+            When the language changes, the same stop text is refreshed.
+        */
+        let lastSelectedStop = null;
+
+        /*
+            Languages written from right to left.
+            Arabic needs RTL display.
+        */
+        const rtlLanguages = ["ar"];
 
         /*
             Sample stops.
@@ -313,14 +377,35 @@
 
         /*
             Show commentary in the selected language.
+            If the translation does not exist yet, English is used as fallback.
+            Arabic is displayed right-to-left.
         */
         function showCommentary(stop) {
-            const language = document.getElementById("languageSelect").value;
-            document.getElementById("commentaryTitle").innerText =
-                `Stop ${stop.number}: ${stop.name}`;
+            lastSelectedStop = stop;
 
-            document.getElementById("commentaryText").innerText =
-                stop.commentary[language] || stop.commentary.en;
+            const language = document.getElementById("languageSelect").value;
+            const selectedText = stop.commentary[language];
+
+            const titleElement = document.getElementById("commentaryTitle");
+            const textElement = document.getElementById("commentaryText");
+
+            titleElement.innerText = `Stop ${stop.number}: ${stop.name}`;
+
+            if (selectedText) {
+                textElement.innerText = selectedText;
+            } else {
+                textElement.innerText =
+                    stop.commentary.en +
+                    "\n\nTranslation for this language is not available yet.";
+            }
+
+            if (rtlLanguages.includes(language)) {
+                textElement.dir = "rtl";
+                textElement.style.textAlign = "right";
+            } else {
+                textElement.dir = "ltr";
+                textElement.style.textAlign = "left";
+            }
         }
 
         /*
@@ -406,11 +491,15 @@
         }
 
         /*
-            When language changes, the next selected stop will use the new language.
+            When language changes, refresh the current selected stop.
         */
         document.getElementById("languageSelect").addEventListener("change", () => {
-            document.getElementById("commentaryText").innerText =
-                "Language changed. Tap a stop again or move near a stop.";
+            if (lastSelectedStop) {
+                showCommentary(lastSelectedStop);
+            } else {
+                document.getElementById("commentaryText").innerText =
+                    "Language changed. Tap a stop again or move near a stop.";
+            }
         });
     </script>
 </body>
