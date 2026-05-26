@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--
+        TuristInfo MVP
+        This first version runs only in the browser.
+        It uses the phone GPS, shows the live position on a map,
+        displays sample tour stops, and prepares the structure
+        for future automatic tourist commentary.
+    -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TuristInfo - GPS Tourist Guide</title>
+
+    <!-- Leaflet map library -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            color: #222;
+        }
+
+        header {
+            background: #c8102e;
+            color: white;
+            padding: 16px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        header p {
+            margin: 6px 0 0;
+            font-size: 14px;
+        }
+
+        #map {
+            width: 100%;
+            height: 60vh;
+        }
+
+        .panel {
+            padding: 14px;
+            background: white;
+            border-top: 1px solid #ddd;
+        }
+
+        .status {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .commentary-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 12px;
+            background: #fafafa;
+        }
+
+        .commentary-card h2 {
+            margin: 0 0 8px;
+            font-size: 18px;
+        }
+
+        .commentary-card p {
+            margin: 0;
+            font-size: 15px;
+            line-height: 1.4;
+        }
+
+        .language-row {
+            margin-top: 10px;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .red { background: #c8102e; }
+        .green { background: #15803d; }
+        .purple { background: #7e22ce; }
+        .black { background: #111827; }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>TuristInfo</h1>
+        <p>Live GPS tourist commentary prototype</p>
+    </header>
+
+    <div id="map"></div>
+
+    <div class="panel">
+        <div class="status" id="gpsStatus">
+            GPS status: waiting for phone location...
+        </div>
+
+        <div class="commentary-card">
+            <h2 id="commentaryTitle">No point selected yet</h2>
+            <p id="commentaryText">
+                Move near a stop or tap a marker on the map to see tourist information.
+            </p>
+
+            <div class="language-row">
+                <label for="languageSelect">Language:</label>
+                <select id="languageSelect">
+                    <option value="en">English</option>
+                    <option value="ro">Romanian</option>
+                    <option value="da">Danish</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><span class="dot red"></span> Red Line</div>
+            <div class="legend-item"><span class="dot green"></span> Green Line</div>
+            <div class="legend-item"><span class="dot purple"></span> Purple Line</div>
+            <div class="legend-item"><span class="dot black"></span> Bus / user position</div>
+        </div>
+    </div>
+
+    <!-- Leaflet map library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        /*
+            Initialize the map in Copenhagen.
+            Later, this can be replaced with exact route data from the database.
+        */
+        const map = L.map("map").setView([55.6761, 12.5683], 13);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "© OpenStreetMap contributors"
+        }).addTo(map);
+
+        /*
+            Sample stops.
+            These are only initial demo points.
+            Later we will replace them with exact Stromma stop coordinates.
+        */
+        const stops = [
+            {
+                number: 1,
+                name: "Ved Stranden / Stop 1",
+                line: "red",
+                lat: 55.6776,
+                lng: 12.5803,
+                commentary: {
+                    en: "This is one of the central starting points of the Copenhagen sightseeing route.",
+                    ro: "Acesta este unul dintre punctele centrale de plecare ale traseului turistic din Copenhaga.",
+                    da: "Dette er et af de centrale startpunkter for sightseeingruten i København."
+                }
+            },
+            {
+                number: 2,
+                name: "Nyhavn",
+                line: "red",
+                lat: 55.6798,
+                lng: 12.5910,
+                commentary: {
+                    en: "Nyhavn is famous for its colorful houses, old ships, restaurants, and historic harbour atmosphere.",
+                    ro: "Nyhavn este cunoscut pentru casele colorate, vasele vechi, restaurante si atmosfera istorica de port.",
+                    da: "Nyhavn er kendt for sine farverige huse, gamle skibe, restauranter og historiske havnestemning."
+                }
+            },
+            {
+                number: 9,
+                name: "Rosenborg Castle",
+                line: "red",
+                lat: 55.6854,
+                lng: 12.5779,
+                commentary: {
+                    en: "Rosenborg Castle was built as a royal residence and is closely connected to Danish royal history.",
+                    ro: "Castelul Rosenborg a fost construit ca resedinta regala si este legat de istoria monarhiei daneze.",
+                    da: "Rosenborg Slot blev bygget som kongelig bolig og er tæt forbundet med dansk kongehistorie."
+                }
+            },
+            {
+                number: 21,
+                name: "Carlsberg Area",
+                line: "green",
+                lat: 55.6650,
+                lng: 12.5338,
+                commentary: {
+                    en: "The Carlsberg area is connected to Danish brewing history and industrial development.",
+                    ro: "Zona Carlsberg este legata de istoria berii daneze si de dezvoltarea industriala.",
+                    da: "Carlsberg-området er forbundet med dansk bryggerihistorie og industriel udvikling."
+                }
+            },
+            {
+                number: 34,
+                name: "Refshaleoen",
+                line: "purple",
+                lat: 55.6935,
+                lng: 12.6108,
+                commentary: {
+                    en: "Refshaleoen was once an industrial shipyard area and is now known for food, culture, and events.",
+                    ro: "Refshaleoen a fost candva o zona industriala navala, iar astazi este cunoscuta pentru mancare, cultura si evenimente.",
+                    da: "Refshaleøen var tidligere et industrielt værftsområde og er nu kendt for mad, kultur og arrangementer."
+                }
+            }
+        ];
+
+        /*
+            Helper function for marker colors.
+        */
+        function getMarkerColor(line) {
+            if (line === "red") return "#c8102e";
+            if (line === "green") return "#15803d";
+            if (line === "purple") return "#7e22ce";
+            return "#111827";
+        }
+
+        /*
+            Create simple colored stop markers.
+        */
+        stops.forEach(stop => {
+            const markerHtml = `
+                <div style="
+                    background:${getMarkerColor(stop.line)};
+                    color:white;
+                    width:32px;
+                    height:32px;
+                    border-radius:50%;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    font-weight:bold;
+                    border:2px solid white;
+                    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+                ">
+                    ${stop.number}
+                </div>
+            `;
+
+            const icon = L.divIcon({
+                html: markerHtml,
+                className: "",
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const marker = L.marker([stop.lat, stop.lng], { icon }).addTo(map);
+
+            marker.on("click", () => {
+                showCommentary(stop);
+            });
+        });
+
+        /*
+            Draw simple demo lines between stops.
+            Later these will become exact street segments.
+        */
+        const redLine = stops
+            .filter(stop => stop.line === "red")
+            .map(stop => [stop.lat, stop.lng]);
+
+        const greenLine = stops
+            .filter(stop => stop.line === "green")
+            .map(stop => [stop.lat, stop.lng]);
+
+        const purpleLine = stops
+            .filter(stop => stop.line === "purple")
+            .map(stop => [stop.lat, stop.lng]);
+
+        if (redLine.length > 1) {
+            L.polyline(redLine, { color: "#c8102e", weight: 4 }).addTo(map);
+        }
+
+        if (greenLine.length > 1) {
+            L.polyline(greenLine, { color: "#15803d", weight: 4 }).addTo(map);
+        }
+
+        if (purpleLine.length > 1) {
+            L.polyline(purpleLine, { color: "#7e22ce", weight: 4 }).addTo(map);
+        }
+
+        /*
+            Show commentary in the selected language.
+        */
+        function showCommentary(stop) {
+            const language = document.getElementById("languageSelect").value;
+            document.getElementById("commentaryTitle").innerText =
+                `Stop ${stop.number}: ${stop.name}`;
+
+            document.getElementById("commentaryText").innerText =
+                stop.commentary[language] || stop.commentary.en;
+        }
+
+        /*
+            Calculate distance between phone position and stop.
+            Result is in meters.
+        */
+        function getDistanceMeters(lat1, lng1, lat2, lng2) {
+            const earthRadius = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) *
+                Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng / 2) *
+                Math.sin(dLng / 2);
+
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return earthRadius * c;
+        }
+
+        let userMarker = null;
+        let userCircle = null;
+
+        /*
+            Start live GPS tracking from the phone.
+        */
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(
+                position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+
+                    document.getElementById("gpsStatus").innerText =
+                        `GPS active: ${lat.toFixed(5)}, ${lng.toFixed(5)} | accuracy ${Math.round(accuracy)} m`;
+
+                    if (!userMarker) {
+                        userMarker = L.marker([lat, lng]).addTo(map);
+                        userCircle = L.circle([lat, lng], {
+                            radius: accuracy,
+                            color: "#111827",
+                            fillOpacity: 0.1
+                        }).addTo(map);
+
+                        map.setView([lat, lng], 15);
+                    } else {
+                        userMarker.setLatLng([lat, lng]);
+                        userCircle.setLatLng([lat, lng]);
+                        userCircle.setRadius(accuracy);
+                    }
+
+                    /*
+                        Automatic trigger:
+                        If the phone is close to a stop, show the stop commentary.
+                        Current trigger radius: 120 meters.
+                    */
+                    const triggerRadius = 120;
+
+                    for (const stop of stops) {
+                        const distance = getDistanceMeters(lat, lng, stop.lat, stop.lng);
+
+                        if (distance <= triggerRadius) {
+                            showCommentary(stop);
+                            break;
+                        }
+                    }
+                },
+                error => {
+                    document.getElementById("gpsStatus").innerText =
+                        `GPS error: ${error.message}`;
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 5000,
+                    timeout: 10000
+                }
+            );
+        } else {
+            document.getElementById("gpsStatus").innerText =
+                "GPS is not supported by this browser.";
+        }
+
+        /*
+            When language changes, the next selected stop will use the new language.
+        */
+        document.getElementById("languageSelect").addEventListener("change", () => {
+            document.getElementById("commentaryText").innerText =
+                "Language changed. Tap a stop again or move near a stop.";
+        });
+    </script>
+</body>
+</html>
