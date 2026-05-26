@@ -3,12 +3,13 @@
 <head>
     <!--
         TuristInfo MVP
-        This first version runs only in the browser.
-        It uses the phone GPS, shows the live position on a map,
-        displays sample tour stops, and prepares the structure
-        for future automatic tourist commentary.
+        This version runs only in the browser.
+        It uses the phone GPS after the user presses Start GPS,
+        shows the live position on a map, displays sample tour stops,
+        and prepares the structure for future automatic tourist commentary.
 
         This version includes:
+        - Start GPS button for mobile browsers
         - European languages
         - Arabic
         - Chinese
@@ -61,6 +62,25 @@
             padding: 14px;
             background: white;
             border-top: 1px solid #ddd;
+        }
+
+        .gps-button {
+            width: 100%;
+            max-width: 360px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 10px;
+            background: #c8102e;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .gps-button:disabled {
+            background: #777;
+            cursor: not-allowed;
         }
 
         .status {
@@ -139,8 +159,12 @@
     <div id="map"></div>
 
     <div class="panel">
+        <button class="gps-button" id="startGpsButton">
+            Start GPS
+        </button>
+
         <div class="status" id="gpsStatus">
-            GPS status: waiting for phone location...
+            GPS status: press Start GPS and allow location.
         </div>
 
         <div class="commentary-card">
@@ -226,6 +250,12 @@
             When the language changes, the same stop text is refreshed.
         */
         let lastSelectedStop = null;
+
+        /*
+            Keep track of the GPS watcher.
+            This prevents starting GPS tracking multiple times.
+        */
+        let gpsWatchId = null;
 
         /*
             Languages written from right to left.
@@ -433,16 +463,36 @@
 
         /*
             Start live GPS tracking from the phone.
+            This function is called only after the user presses Start GPS.
         */
-        if ("geolocation" in navigator) {
-            navigator.geolocation.watchPosition(
+        function startGpsTracking() {
+            const gpsStatus = document.getElementById("gpsStatus");
+            const startButton = document.getElementById("startGpsButton");
+
+            if (gpsWatchId !== null) {
+                gpsStatus.innerText = "GPS is already running.";
+                return;
+            }
+
+            if (!("geolocation" in navigator)) {
+                gpsStatus.innerText = "GPS is not supported by this browser.";
+                return;
+            }
+
+            gpsStatus.innerText = "GPS request sent. Please allow location.";
+            startButton.disabled = true;
+            startButton.innerText = "GPS starting...";
+
+            gpsWatchId = navigator.geolocation.watchPosition(
                 position => {
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     const accuracy = position.coords.accuracy;
 
-                    document.getElementById("gpsStatus").innerText =
+                    gpsStatus.innerText =
                         `GPS active: ${lat.toFixed(5)}, ${lng.toFixed(5)} | accuracy ${Math.round(accuracy)} m`;
+
+                    startButton.innerText = "GPS active";
 
                     if (!userMarker) {
                         userMarker = L.marker([lat, lng]).addTo(map);
@@ -476,19 +526,39 @@
                     }
                 },
                 error => {
-                    document.getElementById("gpsStatus").innerText =
-                        `GPS error: ${error.message}`;
+                    gpsWatchId = null;
+                    startButton.disabled = false;
+                    startButton.innerText = "Start GPS";
+
+                    if (error.code === error.PERMISSION_DENIED) {
+                        gpsStatus.innerText =
+                            "GPS permission denied. Open browser/location settings and allow location for this website.";
+                    } else if (error.code === error.POSITION_UNAVAILABLE) {
+                        gpsStatus.innerText =
+                            "GPS position unavailable. Try again outside or near a window.";
+                    } else if (error.code === error.TIMEOUT) {
+                        gpsStatus.innerText =
+                            "GPS timeout. Try again.";
+                    } else {
+                        gpsStatus.innerText =
+                            `GPS error: ${error.message}`;
+                    }
                 },
                 {
                     enableHighAccuracy: true,
                     maximumAge: 5000,
-                    timeout: 10000
+                    timeout: 15000
                 }
             );
-        } else {
-            document.getElementById("gpsStatus").innerText =
-                "GPS is not supported by this browser.";
         }
+
+        /*
+            Start GPS only when the user presses the button.
+            This is important on mobile browsers.
+        */
+        document.getElementById("startGpsButton").addEventListener("click", () => {
+            startGpsTracking();
+        });
 
         /*
             When language changes, refresh the current selected stop.
